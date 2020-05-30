@@ -59,8 +59,15 @@ public class HBaseClient {
 			print("TableName", td.getNameAsString());
 	}
 
-	public final void removeTable(final String name) {
-		// TODO implements me !
+	public final void removeTable(final TableName name) {
+
+      admin.disableTable(name);
+
+      admin.deleteTable(name);
+      System.out.println("Table deleted");
+   }
+
+
 	}
 
 	public final void createTable(final String name, final String... colNames) throws IOException {
