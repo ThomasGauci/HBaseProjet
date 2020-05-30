@@ -1,0 +1,14 @@
+<configuration>
+	<property>
+		<name>hbase.zookeeper.quorum</name>
+		<value>139.162.222.204</value>
+	</property>
+	<property>
+		<name>hbase.client.retries.number</name>
+		<value>0</value>
+	</property>
+	<property>
+		<name>zookeeper.session.timeout</name>
+		<value>5000</value>
+	</property>
+</configuration>
