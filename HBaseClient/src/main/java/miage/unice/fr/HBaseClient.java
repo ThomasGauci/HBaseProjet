@@ -14,9 +14,12 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
+import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.client.ResultScanner;
+import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.util.Bytes;
 
@@ -40,6 +43,9 @@ public class HBaseClient {
 		hbc.getData("employe");
 		hbc.updateData("employe");
 		hbc.getData("employe");
+		hbc.listColumn("employe");
+		hbc.delete("employe");
+		hbc.listColumn("employe");
 		printSeperator("Exiting");
 	}
 
@@ -110,6 +116,32 @@ public class HBaseClient {
 		table.put(p);
 		print("data inserted");
 		table.close();
+	}
+
+	public final void delete(final String name) throws IOException {
+		printSeperator("Delete " + name);
+		final Table table = conn.getTable(TableName.valueOf(name));
+		byte[] rowKey = "row1".getBytes();
+		Delete delete = new Delete(rowKey);
+
+		table.delete(delete);
+		print("data delete");
+		table.close();
+	}
+
+	public final void listColumn( final String name) throws IOException {
+		printSeperator("Select " + name);
+		final Table table = conn.getTable(TableName.valueOf(name));
+		Scan scan = new Scan();
+		scan.addColumn("personal".getBytes(), "name".getBytes());
+		scan.addColumn("personal".getBytes(), "city".getBytes());
+		scan.addColumn("professional".getBytes(), "designation".getBytes());
+		scan.addColumn("professional".getBytes(), "salary".getBytes());
+		ResultScanner scanner = table.getScanner(scan);
+		for (Result result = scanner.next(); result != null; result = scanner.next())
+        System.out.println("Found row : " + result);
+        scanner.close();
+
 	}
 
 	public final void deleteTables(final String... names) throws IOException {
