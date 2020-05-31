@@ -12,7 +12,6 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
-import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 
 /**
  * Classe exemple pour utiliser HBase
@@ -20,16 +19,16 @@ import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
  * @author Pierre SAUNDERS
  * @version 1.0
  */
-// @SuppressWarnings("deprecation")
+@SuppressWarnings("deprecation")
 public class HBaseClient {
 
 	public static final void main(final String[] args) throws IOException {
-		printSeperator("Hello World !");
+		printSeperator("Starting");
 		final HBaseClient hbc = new HBaseClient();
 		hbc.listTables();
-		hbc.removeTable("employe");
+		hbc.deleteTable("employe");
 		hbc.createTable("employe", new String[] { "personal", "professional" });
-		hbc.end();
+		printSeperator("Exiting");
 	}
 
 	private final Configuration cfg;
@@ -59,15 +58,12 @@ public class HBaseClient {
 			print("TableName", td.getNameAsString());
 	}
 
-	public final void removeTable(final TableName name) {
-
-      admin.disableTable(name);
-
-      admin.deleteTable(name);
-      System.out.println("Table deleted");
-   }
-
-
+	public final void deleteTable(final String name) throws IOException {
+		printSeperator("Deleting table " + name);
+		final TableName tName = TableName.valueOf(name);
+		admin.disableTable(tName);
+		admin.deleteTable(tName);
+		print("Table", name, "deleted");
 	}
 
 	public final void createTable(final String name, final String... colNames) throws IOException {
