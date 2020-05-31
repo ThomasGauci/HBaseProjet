@@ -75,6 +75,8 @@ public class HBaseClient {
 		hbc.deleteRow("employe", "row1");
 		hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new Tuple<String>("personal", "city"));
 
+		// TODO à extraire du dtd !
+		hbc.deleteTable("Invoice");
 		final String[] xmlColnames = new String[] { "OrderId", "PersonId", "OrderDate", "TotalPrice", "Orderline" };
 		final String[] xmlsub_orderLineColnames = new String[] { "productId", "asin", "title", "price", "brand" };
 		final String xmlfilepath = hbc.getClass().getClassLoader().getResource("Invoice.xml").getFile();
@@ -96,13 +98,12 @@ public class HBaseClient {
 		csvfilepath = hbc.getClass().getClassLoader().getResource("Vendor.csv").getFile();
 		hbc.deleteTable("Vendor");
 		hbc.insertCSV("Vendor", csvfilepath);
-		
-		hbc.insertXML("Invoice", filepath, xmlColnames, xmlsub_orderLineColnames);
+
 		final String[] jsonColnames = new String[] { "OrderId", "PersonId", "OrderDate", "TotalPrice", "Orderline" };
 		final String[] jsonsub_orderLineColnames = new String[] { "productId", "asin", "title", "price", "brand" };
 		final String filepathjson = hbc.getClass().getClassLoader().getResource("Order.json").getFile();
 		hbc.insertJSON("Order", filepathjson, jsonColnames, jsonsub_orderLineColnames);
-		
+
 		printSeparator("Exiting");
 	}
 
@@ -311,37 +312,45 @@ public class HBaseClient {
 
 		// lecture du fichier texte
 		try {
-			InputStream ips = new FileInputStream(filename);
-			InputStreamReader ipsr = new InputStreamReader(ips);
-			BufferedReader br = new BufferedReader(ipsr);
+			final InputStream ips = new FileInputStream(filename);
+			final InputStreamReader ipsr = new InputStreamReader(ips);
+			final BufferedReader br = new BufferedReader(ipsr);
 			String ligne;
 			while ((ligne = br.readLine()) != null) {
-				Gson gson = new Gson();
-				JsonObject jsonObject = gson.fromJson(ligne, JsonObject.class);
+				final Gson gson = new Gson();
+				final JsonObject jsonObject = gson.fromJson(ligne, JsonObject.class);
 
 				p = new Put((jsonObject.get("OrderId").getAsString()).getBytes());
 
-				p.addColumn(jsonColnames[0].getBytes(), jsonColnames[0].getBytes(),(jsonObject.get("OrderId").getAsString()).getBytes());
-				p.addColumn(jsonColnames[1].getBytes(), jsonColnames[1].getBytes(),(jsonObject.get("PersonId").getAsString()).getBytes());
-				p.addColumn(jsonColnames[2].getBytes(), jsonColnames[2].getBytes(),(jsonObject.get("OrderDate").getAsString()).getBytes());
-				p.addColumn(jsonColnames[3].getBytes(), jsonColnames[3].getBytes(),(jsonObject.get("TotalPrice").getAsString()).getBytes());
+				p.addColumn(jsonColnames[0].getBytes(), jsonColnames[0].getBytes(),
+						(jsonObject.get("OrderId").getAsString()).getBytes());
+				p.addColumn(jsonColnames[1].getBytes(), jsonColnames[1].getBytes(),
+						(jsonObject.get("PersonId").getAsString()).getBytes());
+				p.addColumn(jsonColnames[2].getBytes(), jsonColnames[2].getBytes(),
+						(jsonObject.get("OrderDate").getAsString()).getBytes());
+				p.addColumn(jsonColnames[3].getBytes(), jsonColnames[3].getBytes(),
+						(jsonObject.get("TotalPrice").getAsString()).getBytes());
 
-				JsonArray items = jsonObject.get("Orderline").getAsJsonArray();
-				
+				final JsonArray items = jsonObject.get("Orderline").getAsJsonArray();
+
 				for (int i = 0; i < items.size(); i++) {
-					JsonObject jobject = items.get(i).getAsJsonObject();
-					p.addColumn(jsonColnames[4].getBytes(), jsonsub_orderLineColnames[0].getBytes(),(jobject.get("productId").getAsString()).getBytes());
-			 		p.addColumn(jsonColnames[4].getBytes(), jsonsub_orderLineColnames[1].getBytes(),(jobject.get("asin").getAsString()).getBytes());
-			 		p.addColumn(jsonColnames[4].getBytes(), jsonsub_orderLineColnames[2].getBytes(),(jobject.get("title").getAsString()).getBytes());
-			 		p.addColumn(jsonColnames[4].getBytes(), jsonsub_orderLineColnames[3].getBytes(),(jobject.get("price").getAsString()).getBytes());
-			 		p.addColumn(jsonColnames[4].getBytes(), jsonsub_orderLineColnames[4].getBytes(),(jobject.get("brand").getAsString()).getBytes()); 
+					final JsonObject jobject = items.get(i).getAsJsonObject();
+					p.addColumn(jsonColnames[4].getBytes(), jsonsub_orderLineColnames[0].getBytes(),
+							(jobject.get("productId").getAsString()).getBytes());
+					p.addColumn(jsonColnames[4].getBytes(), jsonsub_orderLineColnames[1].getBytes(),
+							(jobject.get("asin").getAsString()).getBytes());
+					p.addColumn(jsonColnames[4].getBytes(), jsonsub_orderLineColnames[2].getBytes(),
+							(jobject.get("title").getAsString()).getBytes());
+					p.addColumn(jsonColnames[4].getBytes(), jsonsub_orderLineColnames[3].getBytes(),
+							(jobject.get("price").getAsString()).getBytes());
+					p.addColumn(jsonColnames[4].getBytes(), jsonsub_orderLineColnames[4].getBytes(),
+							(jobject.get("brand").getAsString()).getBytes());
 				}
 				table.put(p);
 			}
-		   br.close();
-		}    
-		catch (Exception e){
-		   System.out.println(e.toString());
+			br.close();
+		} catch (final Exception e) {
+			System.out.println(e.toString());
 		}
 		table.close();
 	}
@@ -413,7 +422,6 @@ public class HBaseClient {
 		}
 		table.close();
 	}
-
 
 	public static final void printSeparator(final String... s) {
 		final List<String> list = new LinkedList<String>(Arrays.asList(s));
