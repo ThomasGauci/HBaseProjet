@@ -83,7 +83,14 @@ public class HBaseClient {
 		csvfilepath = hbc.getClass().getClassLoader().getResource("Product.csv").getFile();
 		hbc.deleteTable("Product");
 		hbc.insertCSV("Product", csvfilepath);
-		hbc.scanData("Product");
+
+		csvfilepath = hbc.getClass().getClassLoader().getResource("Feedback.csv").getFile();
+		hbc.deleteTable("Feedback");
+		hbc.insertCSV("Feedback", csvfilepath, "\\|", new String[] { "asin", "PersonId", "feedback" });
+
+		csvfilepath = hbc.getClass().getClassLoader().getResource("Vendor.csv").getFile();
+		hbc.deleteTable("Vendor");
+		hbc.insertCSV("Vendor", csvfilepath);
 
 		printSeparator("Exiting");
 	}
@@ -275,6 +282,37 @@ public class HBaseClient {
 			table.put(p);
 		}
 
+		table.close();
+	}
+
+	public final void insertCSV(final String table_name, final String filepath, final String[] headers)
+			throws IOException {
+		insertCSV(table_name, filepath, ",", headers);
+	}
+
+	public final void insertCSV(final String table_name, final String filepath, final String separator,
+			final String[] headers) throws IOException {
+
+		printSeparator("inserting csv", filepath, "into", table_name);
+		final TableName tableName = TableName.valueOf(table_name);
+		if (!admin.tableExists(tableName)) {
+			createTable(table_name, headers);
+		}
+
+		final Table table = conn.getTable(tableName);
+
+		try (BufferedReader br = new BufferedReader(new FileReader(filepath))) {
+			String line = "";
+			while ((line = br.readLine()) != null) {
+				final String[] data = line.split(separator);
+				final Put p = new Put(data[0].getBytes());
+				for (byte j = 1; j < headers.length; j++)
+					p.addColumn(headers[j].getBytes(), headers[j].getBytes(), data[j].getBytes());
+				table.put(p);
+			}
+		} catch (final IOException e) {
+			e.printStackTrace();
+		}
 		table.close();
 	}
 
