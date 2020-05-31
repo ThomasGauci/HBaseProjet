@@ -3,11 +3,11 @@ package miage.unice.fr;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -75,12 +75,28 @@ public class HBaseClient {
 		hbc.deleteRow("employe", "row1");
 		hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new Tuple<String>("personal", "city"));
 
-		// TODO à extraire du dtd !
-		hbc.deleteTable("Invoice");
-		final String[] xmlColnames = new String[] { "OrderId", "PersonId","OrderDate", "TotalPrice", "Orderline" };
-		final String[] xmlsub_orderLineColnames = new String[] { "productId", "asin","title", "price", "brand" };
-		final String filepath =
-		hbc.getClass().getClassLoader().getResource("Invoice.xml").getFile();
+		final String[] xmlColnames = new String[] { "OrderId", "PersonId", "OrderDate", "TotalPrice", "Orderline" };
+		final String[] xmlsub_orderLineColnames = new String[] { "productId", "asin", "title", "price", "brand" };
+		final String xmlfilepath = hbc.getClass().getClassLoader().getResource("Invoice.xml").getFile();
+		hbc.insertXML("Invoice", xmlfilepath, xmlColnames, xmlsub_orderLineColnames);
+
+		String csvfilepath = hbc.getClass().getClassLoader().getResource("person_0_0.csv").getFile();
+		hbc.deleteTable("Person");
+		hbc.insertCSV("Person", csvfilepath, "\\|");
+		hbc.scanData("Person");
+
+		csvfilepath = hbc.getClass().getClassLoader().getResource("Product.csv").getFile();
+		hbc.deleteTable("Product");
+		hbc.insertCSV("Product", csvfilepath);
+
+		csvfilepath = hbc.getClass().getClassLoader().getResource("Feedback.csv").getFile();
+		hbc.deleteTable("Feedback");
+		hbc.insertCSV("Feedback", csvfilepath, "\\|", new String[] { "asin", "PersonId", "feedback" });
+
+		csvfilepath = hbc.getClass().getClassLoader().getResource("Vendor.csv").getFile();
+		hbc.deleteTable("Vendor");
+		hbc.insertCSV("Vendor", csvfilepath);
+		
 		hbc.insertXML("Invoice", filepath, xmlColnames, xmlsub_orderLineColnames);
 		final String[] jsonColnames = new String[] { "OrderId", "PersonId", "OrderDate", "TotalPrice", "Orderline" };
 		final String[] jsonsub_orderLineColnames = new String[] { "productId", "asin", "title", "price", "brand" };
@@ -329,6 +345,75 @@ public class HBaseClient {
 		}
 		table.close();
 	}
+
+	public final void insertCSV(final String table_name, final String filepath, final String[] headers)
+			throws IOException {
+		insertCSV(table_name, filepath, ",", headers);
+	}
+
+	public final void insertCSV(final String table_name, final String filepath, final String separator,
+			final String[] headers) throws IOException {
+
+		printSeparator("inserting csv", filepath, "into", table_name);
+		final TableName tableName = TableName.valueOf(table_name);
+		if (!admin.tableExists(tableName)) {
+			createTable(table_name, headers);
+		}
+
+		final Table table = conn.getTable(tableName);
+
+		try (BufferedReader br = new BufferedReader(new FileReader(filepath))) {
+			String line = "";
+			while ((line = br.readLine()) != null) {
+				final String[] data = line.split(separator);
+				final Put p = new Put(data[0].getBytes());
+				for (byte j = 1; j < headers.length; j++)
+					p.addColumn(headers[j].getBytes(), headers[j].getBytes(), data[j].getBytes());
+				table.put(p);
+			}
+		} catch (final IOException e) {
+			e.printStackTrace();
+		}
+		table.close();
+	}
+
+	public final void insertCSV(final String table_name, final String filepath) throws IOException {
+		insertCSV(table_name, filepath, ",");
+	}
+
+	public final void insertCSV(final String table_name, final String filepath, final String separator)
+			throws IOException {
+
+		printSeparator("inserting csv", filepath, "into", table_name);
+		final TableName tableName = TableName.valueOf(table_name);
+
+		final Table table = conn.getTable(tableName);
+
+		try (BufferedReader br = new BufferedReader(new FileReader(filepath))) {
+			String line = "";
+			String headers[] = null;
+			for (int index = 0; (line = br.readLine()) != null; index++) {
+				final String[] data = line.split(separator);
+				if (index == 0) {
+					headers = new String[data.length];
+					for (byte i = 0; i < data.length; i++)
+						headers[i] = data[i];
+					if (!admin.tableExists(tableName)) {
+						createTable(table_name, headers);
+					}
+				} else {
+					final Put p = new Put(data[0].getBytes());
+					for (byte j = 1; j < headers.length; j++)
+						p.addColumn(headers[j].getBytes(), headers[j].getBytes(), data[j].getBytes());
+					table.put(p);
+				}
+			}
+		} catch (final IOException e) {
+			e.printStackTrace();
+		}
+		table.close();
+	}
+
 
 	public static final void printSeparator(final String... s) {
 		final List<String> list = new LinkedList<String>(Arrays.asList(s));
