@@ -71,23 +71,14 @@ public class HBaseClient {
 	}
 
 	public final void createTable(final String name, final String... colNames) throws IOException {
-		printSeperator("creating table " + name);
-		final TableDescriptorBuilder tableDescriptor = new TableDescriptorBuilder(TableName.valueOf(name));
+		printSeperator("Creating table " + name);
+		final HTableDescriptor tableDescriptor = new HTableDescriptor(TableName.valueOf(name));
 
 		for (final String colName : colNames)
 			tableDescriptor.addFamily(new HColumnDescriptor(colName));
 
 		admin.createTable(tableDescriptor);
-		print("Table " + name + " created");
-	}
-
-	public final void end() {
-		try {
-			admin.close();
-			conn.close();
-		} catch (final Exception e) {
-			// Nan
-		}
+		print("Table", name, "created");
 	}
 
 	private static final void printSeperator(final String name) {
