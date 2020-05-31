@@ -2,9 +2,12 @@ package miage.unice.fr;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -19,6 +22,7 @@ import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Admin;
+import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.Delete;
@@ -35,6 +39,9 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 
 /**
  * Classe exemple pour utiliser HBase
@@ -70,28 +77,16 @@ public class HBaseClient {
 
 		// TODO à extraire du dtd !
 		hbc.deleteTable("Invoice");
-		final String[] xmlColnames = new String[] { "OrderId", "PersonId", "OrderDate", "TotalPrice", "Orderline" };
-		final String[] xmlsub_orderLineColnames = new String[] { "productId", "asin", "title", "price", "brand" };
-		final String xmlfilepath = hbc.getClass().getClassLoader().getResource("Invoice.xml").getFile();
-		hbc.insertXML("Invoice", xmlfilepath, xmlColnames, xmlsub_orderLineColnames);
-
-		String csvfilepath = hbc.getClass().getClassLoader().getResource("person_0_0.csv").getFile();
-		hbc.deleteTable("Person");
-		hbc.insertCSV("Person", csvfilepath, "\\|");
-		hbc.scanData("Person");
-
-		csvfilepath = hbc.getClass().getClassLoader().getResource("Product.csv").getFile();
-		hbc.deleteTable("Product");
-		hbc.insertCSV("Product", csvfilepath);
-
-		csvfilepath = hbc.getClass().getClassLoader().getResource("Feedback.csv").getFile();
-		hbc.deleteTable("Feedback");
-		hbc.insertCSV("Feedback", csvfilepath, "\\|", new String[] { "asin", "PersonId", "feedback" });
-
-		csvfilepath = hbc.getClass().getClassLoader().getResource("Vendor.csv").getFile();
-		hbc.deleteTable("Vendor");
-		hbc.insertCSV("Vendor", csvfilepath);
-
+		final String[] xmlColnames = new String[] { "OrderId", "PersonId","OrderDate", "TotalPrice", "Orderline" };
+		final String[] xmlsub_orderLineColnames = new String[] { "productId", "asin","title", "price", "brand" };
+		final String filepath =
+		hbc.getClass().getClassLoader().getResource("Invoice.xml").getFile();
+		hbc.insertXML("Invoice", filepath, xmlColnames, xmlsub_orderLineColnames);
+		final String[] jsonColnames = new String[] { "OrderId", "PersonId", "OrderDate", "TotalPrice", "Orderline" };
+		final String[] jsonsub_orderLineColnames = new String[] { "productId", "asin", "title", "price", "brand" };
+		final String filepathjson = hbc.getClass().getClassLoader().getResource("Order.json").getFile();
+		hbc.insertJSON("Order", filepathjson, jsonColnames, jsonsub_orderLineColnames);
+		
 		printSeparator("Exiting");
 	}
 
@@ -178,7 +173,7 @@ public class HBaseClient {
 		final TableName tableName = TableName.valueOf(name);
 		if (admin.tableExists(tableName)) {
 			final TableDescriptor td = admin.getDescriptor(tableName);
-			for (final var cf : td.getColumnFamilies())
+			for (final ColumnFamilyDescriptor cf : td.getColumnFamilies())
 				print("Column Family :", cf.getNameAsString());
 		} else
 			print("La table", name, "n'existe pas dans la base");
@@ -285,70 +280,52 @@ public class HBaseClient {
 		table.close();
 	}
 
-	public final void insertCSV(final String table_name, final String filepath, final String[] headers)
-			throws IOException {
-		insertCSV(table_name, filepath, ",", headers);
-	}
+	public final void insertJSON(final String table_name, final String filename, final String[] jsonColnames,
+			final String[] jsonsub_orderLineColnames) throws IOException {
 
-	public final void insertCSV(final String table_name, final String filepath, final String separator,
-			final String[] headers) throws IOException {
-
-		printSeparator("inserting csv", filepath, "into", table_name);
+		printSeparator("inserting JSON", filename, "into", table_name);
 		final TableName tableName = TableName.valueOf(table_name);
 		if (!admin.tableExists(tableName)) {
-			createTable(table_name, headers);
+			createTable(table_name, jsonColnames);
 		}
 
 		final Table table = conn.getTable(tableName);
 
-		try (BufferedReader br = new BufferedReader(new FileReader(filepath))) {
-			String line = "";
-			while ((line = br.readLine()) != null) {
-				final String[] data = line.split(separator);
-				final Put p = new Put(data[0].getBytes());
-				for (byte j = 1; j < headers.length; j++)
-					p.addColumn(headers[j].getBytes(), headers[j].getBytes(), data[j].getBytes());
+		Put p = null;
+
+		// lecture du fichier texte
+		try {
+			InputStream ips = new FileInputStream(filename);
+			InputStreamReader ipsr = new InputStreamReader(ips);
+			BufferedReader br = new BufferedReader(ipsr);
+			String ligne;
+			while ((ligne = br.readLine()) != null) {
+				Gson gson = new Gson();
+				JsonObject jsonObject = gson.fromJson(ligne, JsonObject.class);
+
+				p = new Put((jsonObject.get("OrderId").getAsString()).getBytes());
+
+				p.addColumn(jsonColnames[0].getBytes(), jsonColnames[0].getBytes(),(jsonObject.get("OrderId").getAsString()).getBytes());
+				p.addColumn(jsonColnames[1].getBytes(), jsonColnames[1].getBytes(),(jsonObject.get("PersonId").getAsString()).getBytes());
+				p.addColumn(jsonColnames[2].getBytes(), jsonColnames[2].getBytes(),(jsonObject.get("OrderDate").getAsString()).getBytes());
+				p.addColumn(jsonColnames[3].getBytes(), jsonColnames[3].getBytes(),(jsonObject.get("TotalPrice").getAsString()).getBytes());
+
+				JsonArray items = jsonObject.get("Orderline").getAsJsonArray();
+				
+				for (int i = 0; i < items.size(); i++) {
+					JsonObject jobject = items.get(i).getAsJsonObject();
+					p.addColumn(jsonColnames[4].getBytes(), jsonsub_orderLineColnames[0].getBytes(),(jobject.get("productId").getAsString()).getBytes());
+			 		p.addColumn(jsonColnames[4].getBytes(), jsonsub_orderLineColnames[1].getBytes(),(jobject.get("asin").getAsString()).getBytes());
+			 		p.addColumn(jsonColnames[4].getBytes(), jsonsub_orderLineColnames[2].getBytes(),(jobject.get("title").getAsString()).getBytes());
+			 		p.addColumn(jsonColnames[4].getBytes(), jsonsub_orderLineColnames[3].getBytes(),(jobject.get("price").getAsString()).getBytes());
+			 		p.addColumn(jsonColnames[4].getBytes(), jsonsub_orderLineColnames[4].getBytes(),(jobject.get("brand").getAsString()).getBytes()); 
+				}
 				table.put(p);
 			}
-		} catch (final IOException e) {
-			e.printStackTrace();
-		}
-		table.close();
-	}
-
-	public final void insertCSV(final String table_name, final String filepath) throws IOException {
-		insertCSV(table_name, filepath, ",");
-	}
-
-	public final void insertCSV(final String table_name, final String filepath, final String separator)
-			throws IOException {
-
-		printSeparator("inserting csv", filepath, "into", table_name);
-		final TableName tableName = TableName.valueOf(table_name);
-
-		final Table table = conn.getTable(tableName);
-
-		try (BufferedReader br = new BufferedReader(new FileReader(filepath))) {
-			String line = "";
-			String headers[] = null;
-			for (int index = 0; (line = br.readLine()) != null; index++) {
-				final String[] data = line.split(separator);
-				if (index == 0) {
-					headers = new String[data.length];
-					for (byte i = 0; i < data.length; i++)
-						headers[i] = data[i];
-					if (!admin.tableExists(tableName)) {
-						createTable(table_name, headers);
-					}
-				} else {
-					final Put p = new Put(data[0].getBytes());
-					for (byte j = 1; j < headers.length; j++)
-						p.addColumn(headers[j].getBytes(), headers[j].getBytes(), data[j].getBytes());
-					table.put(p);
-				}
-			}
-		} catch (final IOException e) {
-			e.printStackTrace();
+		   br.close();
+		}    
+		catch (Exception e){
+		   System.out.println(e.toString());
 		}
 		table.close();
 	}
