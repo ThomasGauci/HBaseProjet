@@ -1,9 +1,14 @@
 package miage.unice.fr;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -22,6 +27,11 @@ import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 /**
  * Classe exemple pour utiliser HBase
@@ -46,6 +56,14 @@ public class HBaseClient {
 		hbc.listColumn("employe");
 		hbc.delete("employe");
 		hbc.listColumn("employe");
+
+		// TODO à extraire du dtd !
+		hbc.deleteTable("Invoice");
+		final String[] xmlColnames = new String[] { "OrderId", "PersonId", "OrderDate", "TotalPrice", "Orderline" };
+		final String[] xmlsub_orderLineColnames = new String[] { "productId", "asin", "title", "price", "brand" };
+		final String filepath = hbc.getClass().getClassLoader().getResource("Invoice.xml").getFile();
+		hbc.insertXML("Invoice", filepath, xmlColnames, xmlsub_orderLineColnames);
+
 		printSeperator("Exiting");
 	}
 
@@ -118,30 +136,28 @@ public class HBaseClient {
 		table.close();
 	}
 
-	public final void delete(final String name) throws IOException {
-		printSeperator("Delete " + name);
+	public final void deleteRow(final String name) throws IOException {
+		printSeperator("DeleteRow " + name);
 		final Table table = conn.getTable(TableName.valueOf(name));
-		byte[] rowKey = "row1".getBytes();
-		Delete delete = new Delete(rowKey);
+		final Delete delete = new Delete("row1".getBytes());
 
 		table.delete(delete);
-		print("data delete");
+		print("row deleted");
 		table.close();
 	}
 
-	public final void listColumn( final String name) throws IOException {
+	public final void listColumn(final String name) throws IOException {
 		printSeperator("Select " + name);
 		final Table table = conn.getTable(TableName.valueOf(name));
-		Scan scan = new Scan();
+		final Scan scan = new Scan();
 		scan.addColumn("personal".getBytes(), "name".getBytes());
 		scan.addColumn("personal".getBytes(), "city".getBytes());
 		scan.addColumn("professional".getBytes(), "designation".getBytes());
 		scan.addColumn("professional".getBytes(), "salary".getBytes());
-		ResultScanner scanner = table.getScanner(scan);
+		final ResultScanner scanner = table.getScanner(scan);
 		for (Result result = scanner.next(); result != null; result = scanner.next())
-        System.out.println("Found row : " + result);
-        scanner.close();
-
+			print("Found row :", result);
+		scanner.close();
 	}
 
 	public final void deleteTables(final String... names) throws IOException {
@@ -170,6 +186,60 @@ public class HBaseClient {
 
 		admin.createTable(tableDescriptor);
 		print("Table", name, "created");
+	}
+
+	public final void insertXML(final String table_name, final String filename, final String[] xmlColnames,
+			final String[] xmlsub_orderLineColnames) throws IOException {
+
+		printSeperator("inserting xml", filename, "into", table_name);
+		final DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+		DocumentBuilder builder;
+		Document document;
+		try {
+			builder = factory.newDocumentBuilder();
+			document = builder.parse(new File(filename));
+		} catch (ParserConfigurationException | SAXException | IOException e) {
+			e.printStackTrace();
+			return;
+		}
+
+		final TableName tableName = TableName.valueOf(table_name);
+		if (!admin.tableExists(tableName)) {
+			createTable(table_name, xmlColnames);
+		}
+
+		final Table table = conn.getTable(tableName);
+
+		final Element root = document.getDocumentElement();
+		final NodeList rootNodes = root.getChildNodes();
+		final int size = rootNodes.getLength();
+		// entre chaque noeud il y un noeud #text = ""
+		for (int i = 1; i < size; i += 2) {
+			print("Node", i);
+			final Node node = rootNodes.item(i);
+			final NodeList columns = node.getChildNodes();
+			final int nodeSize = columns.getLength();
+
+			Put p = null;
+			int j = 1;
+			for (; j < xmlColnames.length * 2 - 2; j += 2) {
+				final Node column = columns.item(j);
+				if (j == 1) {
+					p = new Put(Bytes.toBytes(node.getTextContent()));
+				} else
+					p.addColumn(Bytes.toBytes(column.getNodeName()), Bytes.toBytes(column.getNodeName()),
+							Bytes.toBytes(column.getTextContent()));
+			}
+
+			for (; j < nodeSize; j += 2) {
+				final Node column = columns.item(j);
+				p.addColumn(Bytes.toBytes(xmlColnames[xmlColnames.length - 1]), Bytes.toBytes(column.getNodeName()),
+						Bytes.toBytes(column.getTextContent()));
+			}
+			table.put(p);
+		}
+
+		table.close();
 	}
 
 	public static final void printSeperator(final String... s) {
