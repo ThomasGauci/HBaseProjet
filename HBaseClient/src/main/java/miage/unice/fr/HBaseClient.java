@@ -54,7 +54,7 @@ public class HBaseClient {
 		hbc.updateData("employe");
 		hbc.getData("employe");
 		hbc.listColumn("employe");
-		hbc.delete("employe");
+		hbc.deleteRow("employe");
 		hbc.listColumn("employe");
 
 		// TODO à extraire du dtd !
