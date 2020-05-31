@@ -26,6 +26,7 @@ import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.client.TableDescriptor;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -39,23 +40,31 @@ import org.xml.sax.SAXException;
  * @author Pierre SAUNDERS
  * @version 1.0
  */
-@SuppressWarnings("deprecation")
+@SuppressWarnings({ "deprecation", "unchecked" })
 public class HBaseClient {
 
 	public static final void main(final String[] args) throws IOException {
-		printSeperator("Starting");
+		printSeparator("Starting");
 		final HBaseClient hbc = new HBaseClient();
 		hbc.listTables();
 		hbc.deleteTable("employe");
 		hbc.createTable("employe", new String[] { "personal", "professional" });
-		hbc.getData("employe");
-		hbc.insertData("employe");
-		hbc.getData("employe");
-		hbc.updateData("employe");
-		hbc.getData("employe");
 		hbc.listColumn("employe");
-		hbc.deleteRow("employe");
-		hbc.listColumn("employe");
+
+		hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new Tuple<String>("personal", "city"));
+		hbc.insertData("employe", "row1", new Triple<String>("personal", "name", "raju"),
+				new Triple<String>("personal", "city", "hyderabad"),
+				new Triple<String>("professional", "designation", "manager"),
+				new Triple<String>("professional", "salary", "50000"));
+
+		hbc.scanData("employe");
+		hbc.scanData("employe", new Tuple<String>("personal", "name"), new Tuple<String>("professional", "salary"));
+
+		hbc.updateData("employe", "row1", new Triple<String>("personal", "city", "helloya"));
+		hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new Tuple<String>("personal", "city"));
+
+		hbc.deleteRow("employe", "row1");
+		hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new Tuple<String>("personal", "city"));
 
 		// TODO à extraire du dtd !
 		hbc.deleteTable("Invoice");
@@ -64,7 +73,7 @@ public class HBaseClient {
 		final String filepath = hbc.getClass().getClassLoader().getResource("Invoice.xml").getFile();
 		hbc.insertXML("Invoice", filepath, xmlColnames, xmlsub_orderLineColnames);
 
-		printSeperator("Exiting");
+		printSeparator("Exiting");
 	}
 
 	private final Configuration cfg;
@@ -72,7 +81,7 @@ public class HBaseClient {
 	private final Admin admin;
 
 	public HBaseClient() throws IOException {
-		printSeperator("Creating configuration");
+		printSeparator("Creating configuration");
 		cfg = HBaseConfiguration.create();
 		cfg.clear();
 		final String path = getClass().getClassLoader().getResource("hbase-site.xml").getPath();
@@ -85,61 +94,60 @@ public class HBaseClient {
 
 		conn = ConnectionFactory.createConnection(cfg);
 		admin = conn.getAdmin();
-		printSeperator("Connected !");
+		printSeparator("Connected !");
 	}
 
 	public final void listTables() throws IOException {
-		printSeperator("List tables");
+		printSeparator("List tables");
 		for (final HTableDescriptor td : admin.listTables())
 			print("TableName", td.getNameAsString());
 	}
 
-	public final void getData(final String tName) throws IOException {
-		final Table table = conn.getTable(TableName.valueOf(tName));
-		final Get g = new Get(Bytes.toBytes("row1"));
-		final Result result = table.get(g);
-		final byte[] value = result.getValue(Bytes.toBytes("personal"), Bytes.toBytes("name"));
-		final byte[] value1 = result.getValue(Bytes.toBytes("personal"), Bytes.toBytes("city"));
-		final String name = Bytes.toString(value);
-		final String city = Bytes.toString(value1);
-		print("name:", name, "city:", city);
+	public final void getData(final String name, final String row, final Tuple<String>... sts) throws IOException {
+		printSeparator("getData", name);
+		final TableName tableName = TableName.valueOf(name);
+		if (admin.tableExists(tableName)) {
+			final Table table = conn.getTable(tableName);
+			final Get g = new Get(row.getBytes());
+			final Result result = table.get(g);
+			for (final Tuple<String> st : sts)
+				print(st.a, "-", st.b, ":", Bytes.toString(result.getValue(st.a.getBytes(), st.b.getBytes())));
+		} else
+			print("La table", name, "n'existe pas dans la base");
 	}
 
-	public final void updateData(final String name) throws IOException {
+	public final void updateData(final String name, final String row, final Triple<String>... sts) throws IOException {
+		printSeparator("updateData", name);
 		final Table table = conn.getTable(TableName.valueOf(name));
 
-		final Put p = new Put(Bytes.toBytes("row1"));
+		final Put p = new Put(row.getBytes());
 
-		p.addColumn(Bytes.toBytes("personal"), Bytes.toBytes("name"), Bytes.toBytes("helloya"));
-		p.addColumn(Bytes.toBytes("personal"), Bytes.toBytes("city"), Bytes.toBytes("hyderabad"));
-		p.addColumn(Bytes.toBytes("professional"), Bytes.toBytes("designation"), Bytes.toBytes("manager"));
-		p.addColumn(Bytes.toBytes("professional"), Bytes.toBytes("salary"), Bytes.toBytes("50000"));
+		for (final Triple<String> ts : sts)
+			p.addColumn(ts.a.getBytes(), ts.b.getBytes(), ts.c.getBytes());
 
 		table.put(p);
 		print("data updated");
-
 		table.close();
 	}
 
-	public final void insertData(final String name) throws IOException {
+	public final void insertData(final String name, final String row, final Triple<String>... sts) throws IOException {
+		printSeparator("insertData", name);
 		final Table table = conn.getTable(TableName.valueOf(name));
 
-		final Put p = new Put(Bytes.toBytes("row1"));
+		final Put p = new Put(row.getBytes());
 
-		p.addColumn(Bytes.toBytes("personal"), Bytes.toBytes("name"), Bytes.toBytes("raju"));
-		p.addColumn(Bytes.toBytes("personal"), Bytes.toBytes("city"), Bytes.toBytes("hyderabad"));
-		p.addColumn(Bytes.toBytes("professional"), Bytes.toBytes("designation"), Bytes.toBytes("manager"));
-		p.addColumn(Bytes.toBytes("professional"), Bytes.toBytes("salary"), Bytes.toBytes("50000"));
+		for (final Triple<String> ts : sts)
+			p.addColumn(ts.a.getBytes(), ts.b.getBytes(), ts.c.getBytes());
 
 		table.put(p);
 		print("data inserted");
 		table.close();
 	}
 
-	public final void deleteRow(final String name) throws IOException {
-		printSeperator("DeleteRow " + name);
+	public final void deleteRow(final String name, final String row) throws IOException {
+		printSeparator("DeleteRow", name);
 		final Table table = conn.getTable(TableName.valueOf(name));
-		final Delete delete = new Delete("row1".getBytes());
+		final Delete delete = new Delete(row.getBytes());
 
 		table.delete(delete);
 		print("row deleted");
@@ -147,17 +155,34 @@ public class HBaseClient {
 	}
 
 	public final void listColumn(final String name) throws IOException {
-		printSeperator("Select " + name);
-		final Table table = conn.getTable(TableName.valueOf(name));
-		final Scan scan = new Scan();
-		scan.addColumn("personal".getBytes(), "name".getBytes());
-		scan.addColumn("personal".getBytes(), "city".getBytes());
-		scan.addColumn("professional".getBytes(), "designation".getBytes());
-		scan.addColumn("professional".getBytes(), "salary".getBytes());
-		final ResultScanner scanner = table.getScanner(scan);
-		for (Result result = scanner.next(); result != null; result = scanner.next())
-			print("Found row :", result);
-		scanner.close();
+		printSeparator("listColumn", name);
+		final TableName tableName = TableName.valueOf(name);
+		if (admin.tableExists(tableName)) {
+			final TableDescriptor td = admin.getDescriptor(tableName);
+			for (final var cf : td.getColumnFamilies())
+				print("Column Family :", cf.getNameAsString());
+		} else
+			print("La table", name, "n'existe pas dans la base");
+	}
+
+	public final void scanData(final String name) throws IOException {
+		scanData(name, new Tuple[] {});
+	}
+
+	public final void scanData(final String name, final Tuple<String>... sts) throws IOException {
+		printSeparator("scanData", name);
+		final TableName tableName = TableName.valueOf(name);
+		if (admin.tableExists(tableName)) {
+			final Table table = conn.getTable(tableName);
+			final Scan scan = new Scan();
+			for (final Tuple<String> st : sts)
+				scan.addColumn(st.a.getBytes(), st.b.getBytes());
+			final ResultScanner scanner = table.getScanner(scan);
+			for (Result result = scanner.next(); result != null; result = scanner.next())
+				print("Found row :", result);
+			scanner.close();
+		} else
+			print("La table", name, "n'existe pas dans la base");
 	}
 
 	public final void deleteTables(final String... names) throws IOException {
@@ -166,7 +191,7 @@ public class HBaseClient {
 	}
 
 	public final void deleteTable(final String name) throws IOException {
-		printSeperator("Deleting table", name);
+		printSeparator("Deleting table", name);
 		final TableName tName = TableName.valueOf(name);
 		if (admin.tableExists(tName)) {
 			admin.disableTable(tName);
@@ -178,7 +203,7 @@ public class HBaseClient {
 	}
 
 	public final void createTable(final String name, final String... colNames) throws IOException {
-		printSeperator("Creating table", name);
+		printSeparator("Creating table", name);
 		final HTableDescriptor tableDescriptor = new HTableDescriptor(TableName.valueOf(name));
 
 		for (final String colName : colNames)
@@ -191,7 +216,7 @@ public class HBaseClient {
 	public final void insertXML(final String table_name, final String filename, final String[] xmlColnames,
 			final String[] xmlsub_orderLineColnames) throws IOException {
 
-		printSeperator("inserting xml", filename, "into", table_name);
+		printSeparator("inserting xml", filename, "into", table_name);
 		final DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 		DocumentBuilder builder;
 		Document document;
@@ -215,7 +240,6 @@ public class HBaseClient {
 		final int size = rootNodes.getLength();
 		// entre chaque noeud il y un noeud #text = ""
 		for (int i = 1; i < size; i += 2) {
-			print("Node", i);
 			final Node node = rootNodes.item(i);
 			final NodeList columns = node.getChildNodes();
 			final int nodeSize = columns.getLength();
@@ -225,16 +249,16 @@ public class HBaseClient {
 			for (; j < xmlColnames.length * 2 - 2; j += 2) {
 				final Node column = columns.item(j);
 				if (j == 1) {
-					p = new Put(Bytes.toBytes(node.getTextContent()));
+					p = new Put(node.getTextContent().getBytes());
 				} else
-					p.addColumn(Bytes.toBytes(column.getNodeName()), Bytes.toBytes(column.getNodeName()),
-							Bytes.toBytes(column.getTextContent()));
+					p.addColumn(column.getNodeName().getBytes(), column.getNodeName().getBytes(),
+							column.getTextContent().getBytes());
 			}
 
 			for (; j < nodeSize; j += 2) {
 				final Node column = columns.item(j);
-				p.addColumn(Bytes.toBytes(xmlColnames[xmlColnames.length - 1]), Bytes.toBytes(column.getNodeName()),
-						Bytes.toBytes(column.getTextContent()));
+				p.addColumn(xmlColnames[xmlColnames.length - 1].getBytes(), column.getNodeName().getBytes(),
+						column.getTextContent().getBytes());
 			}
 			table.put(p);
 		}
@@ -242,7 +266,7 @@ public class HBaseClient {
 		table.close();
 	}
 
-	public static final void printSeperator(final String... s) {
+	public static final void printSeparator(final String... s) {
 		final List<String> list = new LinkedList<String>(Arrays.asList(s));
 		list.add(0, "\n----------------");
 		list.add("----------------\n");
