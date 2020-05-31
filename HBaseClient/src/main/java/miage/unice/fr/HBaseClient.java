@@ -1,6 +1,8 @@
 package miage.unice.fr;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -70,8 +72,18 @@ public class HBaseClient {
 		hbc.deleteTable("Invoice");
 		final String[] xmlColnames = new String[] { "OrderId", "PersonId", "OrderDate", "TotalPrice", "Orderline" };
 		final String[] xmlsub_orderLineColnames = new String[] { "productId", "asin", "title", "price", "brand" };
-		final String filepath = hbc.getClass().getClassLoader().getResource("Invoice.xml").getFile();
-		hbc.insertXML("Invoice", filepath, xmlColnames, xmlsub_orderLineColnames);
+		final String xmlfilepath = hbc.getClass().getClassLoader().getResource("Invoice.xml").getFile();
+		hbc.insertXML("Invoice", xmlfilepath, xmlColnames, xmlsub_orderLineColnames);
+
+		String csvfilepath = hbc.getClass().getClassLoader().getResource("person_0_0.csv").getFile();
+		hbc.deleteTable("Person");
+		hbc.insertCSV("Person", csvfilepath, "\\|");
+		hbc.scanData("Person");
+
+		csvfilepath = hbc.getClass().getClassLoader().getResource("Product.csv").getFile();
+		hbc.deleteTable("Product");
+		hbc.insertCSV("Product", csvfilepath);
+		hbc.scanData("Product");
 
 		printSeparator("Exiting");
 	}
@@ -263,6 +275,43 @@ public class HBaseClient {
 			table.put(p);
 		}
 
+		table.close();
+	}
+
+	public final void insertCSV(final String table_name, final String filepath) throws IOException {
+		insertCSV(table_name, filepath, ",");
+	}
+
+	public final void insertCSV(final String table_name, final String filepath, final String separator)
+			throws IOException {
+
+		printSeparator("inserting csv", filepath, "into", table_name);
+		final TableName tableName = TableName.valueOf(table_name);
+
+		final Table table = conn.getTable(tableName);
+
+		try (BufferedReader br = new BufferedReader(new FileReader(filepath))) {
+			String line = "";
+			String headers[] = null;
+			for (int index = 0; (line = br.readLine()) != null; index++) {
+				final String[] data = line.split(separator);
+				if (index == 0) {
+					headers = new String[data.length];
+					for (byte i = 0; i < data.length; i++)
+						headers[i] = data[i];
+					if (!admin.tableExists(tableName)) {
+						createTable(table_name, headers);
+					}
+				} else {
+					final Put p = new Put(data[0].getBytes());
+					for (byte j = 1; j < headers.length; j++)
+						p.addColumn(headers[j].getBytes(), headers[j].getBytes(), data[j].getBytes());
+					table.put(p);
+				}
+			}
+		} catch (final IOException e) {
+			e.printStackTrace();
+		}
 		table.close();
 	}
 
