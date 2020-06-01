@@ -42,7 +42,12 @@ import org.xml.sax.SAXException;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-
+import org.apache.hadoop.hbase.filter.BinaryComparator;
+import org.apache.hadoop.hbase.filter.ColumnValueFilter;
+import org.apache.hadoop.hbase.filter.RowFilter;
+import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
+import org.apache.hadoop.hbase.filter.ValueFilter;
+import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
 /**
  * Classe exemple pour utiliser HBase
  * 
@@ -55,55 +60,56 @@ public class HBaseClient {
 	public static final void main(final String[] args) throws IOException {
 		printSeparator("Starting");
 		final HBaseClient hbc = new HBaseClient();
+		hbc.listColumn("Invoice");
+		hbc.query7();
 		hbc.listTables();
-		hbc.deleteTable("employe");
-		hbc.createTable("employe", new String[] { "personal", "professional" });
-		hbc.listColumn("employe");
+		// hbc.scanData("Order");
+		// hbc.deleteTable("employe");
+		// hbc.createTable("employe", new String[] { "personal", "professional" });
+		// hbc.listColumn("employe");
 
-		hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new Tuple<String>("personal", "city"));
-		hbc.insertData("employe", "row1", new Triple<String>("personal", "name", "raju"),
-				new Triple<String>("personal", "city", "hyderabad"),
-				new Triple<String>("professional", "designation", "manager"),
-				new Triple<String>("professional", "salary", "50000"));
+		// hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new Tuple<String>("personal", "city"));
+		// hbc.insertData("employe", "row1", new Triple<String>("personal", "name", "raju"),
+		// 		new Triple<String>("personal", "city", "hyderabad"),
+		// 		new Triple<String>("professional", "designation", "manager"),
+		// 		new Triple<String>("professional", "salary", "50000"));
 
-		hbc.scanData("employe");
-		hbc.scanData("employe", new Tuple<String>("personal", "name"), new Tuple<String>("professional", "salary"));
+		// hbc.scanData("employe");
+		// hbc.scanData("employe", new Tuple<String>("personal", "name"), new Tuple<String>("professional", "salary"));
 
-		hbc.updateData("employe", "row1", new Triple<String>("personal", "city", "helloya"));
-		hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new Tuple<String>("personal", "city"));
+		// hbc.updateData("employe", "row1", new Triple<String>("personal", "city", "helloya"));
+		// hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new Tuple<String>("personal", "city"));
 
-		hbc.deleteRow("employe", "row1");
-		hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new Tuple<String>("personal", "city"));
+		// hbc.deleteRow("employe", "row1");
+		// hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new Tuple<String>("personal", "city"));
 
-		// TODO à extraire du dtd !
-		hbc.deleteTable("Invoice");
-		final String[] xmlColnames = new String[] { "OrderId", "PersonId", "OrderDate", "TotalPrice", "Orderline" };
-		final String[] xmlsub_orderLineColnames = new String[] { "productId", "asin", "title", "price", "brand" };
-		final String xmlfilepath = hbc.getClass().getClassLoader().getResource("Invoice.xml").getFile();
-		hbc.insertXML("Invoice", xmlfilepath, xmlColnames, xmlsub_orderLineColnames);
+		// final String[] xmlColnames = new String[] { "OrderId", "PersonId", "OrderDate", "TotalPrice", "Orderline" };
+		// final String[] xmlsub_orderLineColnames = new String[] { "productId", "asin", "title", "price", "brand" };
+		// final String xmlfilepath = hbc.getClass().getClassLoader().getResource("Invoice.xml").getFile();
+		// hbc.insertXML("Invoice", xmlfilepath, xmlColnames, xmlsub_orderLineColnames);
 
-		String csvfilepath = hbc.getClass().getClassLoader().getResource("person_0_0.csv").getFile();
-		hbc.deleteTable("Person");
-		hbc.insertCSV("Person", csvfilepath, "\\|");
-		hbc.scanData("Person");
+		// String csvfilepath = hbc.getClass().getClassLoader().getResource("person_0_0.csv").getFile();
+		// hbc.deleteTable("Person");
+		// hbc.insertCSV("Person", csvfilepath, "\\|");
+		// hbc.scanData("Person");
 
-		csvfilepath = hbc.getClass().getClassLoader().getResource("Product.csv").getFile();
-		hbc.deleteTable("Product");
-		hbc.insertCSV("Product", csvfilepath);
+		// csvfilepath = hbc.getClass().getClassLoader().getResource("Product.csv").getFile();
+		// hbc.deleteTable("Product");
+		// hbc.insertCSV("Product", csvfilepath);
 
-		csvfilepath = hbc.getClass().getClassLoader().getResource("Feedback.csv").getFile();
-		hbc.deleteTable("Feedback");
-		hbc.insertCSV("Feedback", csvfilepath, "\\|", new String[] { "asin", "PersonId", "feedback" });
+		// csvfilepath = hbc.getClass().getClassLoader().getResource("Feedback.csv").getFile();
+		// hbc.deleteTable("Feedback");
+		// hbc.insertCSV("Feedback", csvfilepath, "\\|", new String[] { "asin", "PersonId", "feedback" });
 
-		csvfilepath = hbc.getClass().getClassLoader().getResource("Vendor.csv").getFile();
-		hbc.deleteTable("Vendor");
-		hbc.insertCSV("Vendor", csvfilepath);
+		// csvfilepath = hbc.getClass().getClassLoader().getResource("Vendor.csv").getFile();
+		// hbc.deleteTable("Vendor");
+		// hbc.insertCSV("Vendor", csvfilepath);
 
-		final String[] jsonColnames = new String[] { "OrderId", "PersonId", "OrderDate", "TotalPrice", "Orderline" };
-		final String[] jsonsub_orderLineColnames = new String[] { "productId", "asin", "title", "price", "brand" };
-		final String filepathjson = hbc.getClass().getClassLoader().getResource("Order.json").getFile();
-		hbc.insertJSON("Order", filepathjson, jsonColnames, jsonsub_orderLineColnames);
-
+		// final String[] jsonColnames = new String[] { "OrderId", "PersonId", "OrderDate", "TotalPrice", "Orderline" };
+		// final String[] jsonsub_orderLineColnames = new String[] { "productId", "asin", "title", "price", "brand" };
+		// final String filepathjson = hbc.getClass().getClassLoader().getResource("Order.json").getFile();
+		// hbc.insertJSON("Order", filepathjson, jsonColnames, jsonsub_orderLineColnames);
+		
 		printSeparator("Exiting");
 	}
 
@@ -422,7 +428,135 @@ public class HBaseClient {
 		}
 		table.close();
 	}
+	public final void query7(){
+		printSeparator("QUERY 7");
+		Table table = null;
+		ResultScanner rScanner = null;
+		try {
+			// Pour les produits d'un vendeur donné (UK_Gear inutile dans l'exemple)
 
+			// Invoice personId > Order personId  > Customer personId > feedback personId = feedback asin > product asin = product brand > vendor vendor
+			TableName tableName = TableName.valueOf("Vendor");
+			printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
+			table = conn.getTable(tableName);
+
+			Scan scan = new Scan();
+			RowFilter filter = new RowFilter(CompareOp.EQUAL, new BinaryComparator(Bytes.toBytes("UK_Gear")));
+
+			scan.setFilter(filter);
+			rScanner = table.getScanner(scan);
+			for (Result res : rScanner) {
+				print("res");
+				byte[] val = res.getValue(Bytes.toBytes("vendor"), Bytes.toBytes("vendor"));
+				System.out.println("Row-value vendor: " + Bytes.toString(val));
+				System.out.println(res);
+			}
+			// ---------------------------------------------------------------------------------------------------------------------
+			// On récupère le nom du vendeur , mtn on cherche cette marque dans brand de la table product
+			tableName = TableName.valueOf("Product");
+			printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
+			table = conn.getTable(tableName);
+			
+			Scan scanProduct = new Scan();
+			// Ici c'est normalement la marque
+			RowFilter filterProduct = new RowFilter(CompareOp.EQUAL, new BinaryComparator(Bytes.toBytes("B005FUKW6M")));
+
+			scanProduct.setFilter(filterProduct);
+			// Submit a scan request.
+			rScanner = table.getScanner(scanProduct);
+			String asinProduct ="";
+			for (Result res : rScanner) {
+				print("res");
+				byte[] val = res.getValue(Bytes.toBytes("asin"), Bytes.toBytes("asin"));
+				System.out.println("Row-value  asin product : " + Bytes.toString(val));
+				System.out.println(res);
+				asinProduct = Bytes.toString(val);
+			}
+			asinProduct = "B005FUKW6M"; // car je ne recupère pas encore le asin car je n'ai pas la marque
+			// ---------------------------------------------------------------------------------------------------------------------
+			// On récupère le asin du produit , mtn on cherche le feedback qui contient ce asin afin d'obtenir les personId
+			tableName = TableName.valueOf("Feedback");
+			printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
+			table = conn.getTable(tableName);
+			
+			Scan scanFeedbackPersonId = new Scan();
+			RowFilter filterFeedbackPersonId = new RowFilter(CompareOp.EQUAL, new BinaryComparator(Bytes.toBytes(asinProduct)));
+
+			scanFeedbackPersonId.setFilter(filterFeedbackPersonId);
+
+			rScanner = table.getScanner(scanFeedbackPersonId);
+			String personId = "";
+			for (Result res : rScanner) {
+				print("res");
+				byte[] val = res.getValue(Bytes.toBytes("PersonId"), Bytes.toBytes("PersonId"));
+				System.out.println("Row-value person id feedback : " + Bytes.toString(val));
+				System.out.println(res);
+				personId =  Bytes.toString(val);
+			}
+			// ---------------------------------------------------------------------------------------------------------------------
+			// On a le personId pour récupèrer la date dans la table invoice ( il faudrait aussi recuperer le price en fonction du asin afin d'avoir un orderDate lié a un prix afin de calculer si il y a eu une baisse)
+			tableName = TableName.valueOf("Invoice");
+			printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
+			table = conn.getTable(tableName);
+			
+			Scan scanInvoice = new Scan();
+			RowFilter filterInvoice = new RowFilter(CompareOp.EQUAL, new BinaryComparator(Bytes.toBytes(personId)));
+
+			scanInvoice.setFilter(filterInvoice);
+
+			rScanner = table.getScanner(scanInvoice);
+			for (Result res : rScanner) {
+				print("res");
+				byte[] val = res.getValue(Bytes.toBytes("OrderDate"), Bytes.toBytes("OrderDate"));
+				System.out.println("Row-value invoice orderdate : " + Bytes.toString(val));
+				System.out.println(res);
+			}
+			// ---------------------------------------------------------------------------------------------------------------------
+			// analyse des avis sur ces articles pour voir s'il y a des sentiments négatifs en fonction du asin
+			tableName = TableName.valueOf("Feedback");
+			printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
+			table = conn.getTable(tableName);
+			
+			Scan scanFeedbackAsin = new Scan();
+			RowFilter filterFeedbackAsin = new RowFilter(CompareOp.EQUAL, new BinaryComparator(Bytes.toBytes("B005FUKW6M")));
+
+			scanFeedbackAsin.setFilter(filterFeedbackAsin);
+			rScanner = table.getScanner(scanFeedbackAsin);
+			for (Result res : rScanner) {
+
+				byte[] PersonId = res.getValue(Bytes.toBytes("PersonId"), Bytes.toBytes("PersonId"));
+				System.out.println("Row-value person id feedback: " + Bytes.toString(PersonId) + "\n");				
+				System.out.println(res);
+			}
+			// ---------------------------------------------------------------------------------------------------------------------
+			printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
+			Scan scanFeedback = new Scan();
+			RowFilter filterFeedback = new RowFilter(CompareOp.EQUAL, new BinaryComparator(Bytes.toBytes("B00005OU5T")));
+
+			scanInvoice.setFilter(filterFeedback);
+			rScanner = table.getScanner(scanFeedback);
+			int compteurNoteNegatif = 0;
+			int i =0;
+			for (Result res : rScanner) {
+				print("res");
+				byte[] feedback = res.getValue(Bytes.toBytes("feedback"), Bytes.toBytes("feedback"));
+				System.out.println("Row-value feedback notes : " + Bytes.toString(feedback) + "\n");				
+				String note = Bytes.toString(feedback).substring(1,2);
+				print(" Note feedback : "+ note + "\n");
+				i++;
+				if(  Integer.parseInt(note) < 3){
+					compteurNoteNegatif++;
+				}
+				System.out.println(res);
+			}
+			print("Nombre d'avis negatif : " + compteurNoteNegatif + " ce qui donne un poucentage de " + (i/compteurNoteNegatif) + " % d'avis negatif");
+			// jpp il est 3h40 les données des tables sont claqués, je vais dormir
+
+			table.close();
+		} catch (IOException  e) {
+			print("Single column value filter failed " ,e);
+		}
+	}
 	public static final void printSeparator(final String... s) {
 		final List<String> list = new LinkedList<String>(Arrays.asList(s));
 		list.add(0, "\n----------------");
