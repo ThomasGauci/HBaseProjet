@@ -7,13 +7,20 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.text.DecimalFormat;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -33,21 +40,20 @@ import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.client.TableDescriptor;
+import org.apache.hadoop.hbase.filter.BinaryComparator;
+import org.apache.hadoop.hbase.filter.Filter;
+import org.apache.hadoop.hbase.filter.FilterList;
+import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
+import org.apache.hadoop.hbase.filter.RowFilter;
+import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
+import org.apache.hadoop.hbase.filter.SubstringComparator;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import org.apache.hadoop.hbase.filter.BinaryComparator;
-import org.apache.hadoop.hbase.filter.ColumnValueFilter;
-import org.apache.hadoop.hbase.filter.RowFilter;
-import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
-import org.apache.hadoop.hbase.filter.ValueFilter;
-import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
+
 /**
  * Classe exemple pour utiliser HBase
  * 
@@ -57,60 +63,77 @@ import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
 @SuppressWarnings({ "deprecation", "unchecked" })
 public class HBaseClient {
 
+	private static final int insertedLineMax = 2000;
+	private static final DecimalFormat df = new DecimalFormat("0.00");
+
 	public static final void main(final String[] args) throws IOException {
 		printSeparator("Starting");
 		final HBaseClient hbc = new HBaseClient();
-		hbc.listColumn("Invoice");
-		hbc.query7();
 		hbc.listTables();
+
 		// hbc.scanData("Order");
 		// hbc.deleteTable("employe");
 		// hbc.createTable("employe", new String[] { "personal", "professional" });
 		// hbc.listColumn("employe");
 
-		// hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new Tuple<String>("personal", "city"));
-		// hbc.insertData("employe", "row1", new Triple<String>("personal", "name", "raju"),
-		// 		new Triple<String>("personal", "city", "hyderabad"),
-		// 		new Triple<String>("professional", "designation", "manager"),
-		// 		new Triple<String>("professional", "salary", "50000"));
+		// hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new
+		// Tuple<String>("personal", "city"));
+		// hbc.insertData("employe", "row1", new Triple<String>("personal", "name",
+		// "raju"),
+		// new Triple<String>("personal", "city", "hyderabad"),
+		// new Triple<String>("professional", "designation", "manager"),
+		// new Triple<String>("professional", "salary", "50000"));
 
 		// hbc.scanData("employe");
-		// hbc.scanData("employe", new Tuple<String>("personal", "name"), new Tuple<String>("professional", "salary"));
+		// hbc.scanData("employe", new Tuple<String>("personal", "name"), new
+		// Tuple<String>("professional", "salary"));
 
-		// hbc.updateData("employe", "row1", new Triple<String>("personal", "city", "helloya"));
-		// hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new Tuple<String>("personal", "city"));
+		// hbc.updateData("employe", "row1", new Triple<String>("personal", "city",
+		// "helloya"));
+		// hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new
+		// Tuple<String>("personal", "city"));
 
 		// hbc.deleteRow("employe", "row1");
-		// hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new Tuple<String>("personal", "city"));
+		// hbc.getData("employe", "row1", new Tuple<String>("personal", "name"), new
+		// Tuple<String>("personal", "city"));
 
-		// final String[] xmlColnames = new String[] { "OrderId", "PersonId", "OrderDate", "TotalPrice", "Orderline" };
-		// final String[] xmlsub_orderLineColnames = new String[] { "productId", "asin", "title", "price", "brand" };
-		// final String xmlfilepath = hbc.getClass().getClassLoader().getResource("Invoice.xml").getFile();
-		// hbc.insertXML("Invoice", xmlfilepath, xmlColnames, xmlsub_orderLineColnames);
+		// hbc.insertDatasets();
 
-		// String csvfilepath = hbc.getClass().getClassLoader().getResource("person_0_0.csv").getFile();
-		// hbc.deleteTable("Person");
-		// hbc.insertCSV("Person", csvfilepath, "\\|");
-		// hbc.scanData("Person");
+		hbc.query8();
 
-		// csvfilepath = hbc.getClass().getClassLoader().getResource("Product.csv").getFile();
-		// hbc.deleteTable("Product");
-		// hbc.insertCSV("Product", csvfilepath);
-
-		// csvfilepath = hbc.getClass().getClassLoader().getResource("Feedback.csv").getFile();
-		// hbc.deleteTable("Feedback");
-		// hbc.insertCSV("Feedback", csvfilepath, "\\|", new String[] { "asin", "PersonId", "feedback" });
-
-		// csvfilepath = hbc.getClass().getClassLoader().getResource("Vendor.csv").getFile();
-		// hbc.deleteTable("Vendor");
-		// hbc.insertCSV("Vendor", csvfilepath);
-
-		// final String[] jsonColnames = new String[] { "OrderId", "PersonId", "OrderDate", "TotalPrice", "Orderline" };
-		// final String[] jsonsub_orderLineColnames = new String[] { "productId", "asin", "title", "price", "brand" };
-		// final String filepathjson = hbc.getClass().getClassLoader().getResource("Order.json").getFile();
-		// hbc.insertJSON("Order", filepathjson, jsonColnames, jsonsub_orderLineColnames);
-		
 		printSeparator("Exiting");
+	}
+
+	public final void insertDatasets() throws IOException {
+		final String[] xmlColnames = new String[] { "OrderId", "PersonId", "OrderDate", "TotalPrice", "Orderline" };
+		final String[] xmlsub_orderLineColnames = new String[] { "productId", "asin", "title", "price", "brand" };
+		final String xmlfilepath = getClass().getClassLoader().getResource("Invoice.xml").getFile();
+		insertXML("Invoice", xmlfilepath, xmlColnames, xmlsub_orderLineColnames);
+
+		String csvfilepath = getClass().getClassLoader().getResource("person_0_0.csv").getFile();
+		deleteTable("Person");
+		insertCSV("Person", csvfilepath, "\\|");
+
+		csvfilepath = getClass().getClassLoader().getResource("Product.csv").getFile();
+		deleteTable("Product");
+		insertCSV("Product", csvfilepath);
+
+		csvfilepath = getClass().getClassLoader().getResource("BrandByProduct.csv").getFile();
+		deleteTable("BrandByProduct");
+		insertCSV("BrandByProduct", csvfilepath, new String[] { "brand", "asin" });
+
+		csvfilepath = getClass().getClassLoader().getResource("Feedback.csv").getFile();
+		deleteTable("Feedback");
+		insertCSV("Feedback", csvfilepath, "\\|", new String[] { "asin", "PersonId", "feedback" });
+
+		csvfilepath = getClass().getClassLoader().getResource("Vendor.csv").getFile();
+		deleteTable("Vendor");
+		insertCSV("Vendor", csvfilepath);
+
+		final String[] jsonColnames = new String[] { "OrderId", "PersonId", "OrderDate", "TotalPrice", "Orderline" };
+		final String[] jsonsub_orderLineColnames = new String[] { "productId", "asin", "title", "price", "brand" };
+		final String filepathjson = getClass().getClassLoader().getResource("Order.json").getFile();
+		insertJSON("Order", filepathjson, jsonColnames, jsonsub_orderLineColnames);
 	}
 
 	private final Configuration cfg;
@@ -215,8 +238,11 @@ public class HBaseClient {
 			for (final Tuple<String> st : sts)
 				scan.addColumn(st.a.getBytes(), st.b.getBytes());
 			final ResultScanner scanner = table.getScanner(scan);
-			for (Result result = scanner.next(); result != null; result = scanner.next())
+			for (Result result = scanner.next(); result != null; result = scanner.next()) {
 				print("Found row :", result);
+				for (final Tuple<String> st : sts)
+					print(st.a, "-", st.b, ":", Bytes.toString(result.getValue(st.a.getBytes(), st.b.getBytes())));
+			}
 			scanner.close();
 		} else
 			print("La table", name, "n'existe pas dans la base");
@@ -276,8 +302,8 @@ public class HBaseClient {
 		final NodeList rootNodes = root.getChildNodes();
 		final int size = rootNodes.getLength();
 		// entre chaque noeud il y un noeud #text = ""
-		for (int i = 1; i < size; i += 2) {
-			final Node node = rootNodes.item(i);
+		for (int index = 1; index < size; index += 2) {
+			final Node node = rootNodes.item(index);
 			final NodeList columns = node.getChildNodes();
 			final int nodeSize = columns.getLength();
 
@@ -298,6 +324,9 @@ public class HBaseClient {
 						column.getTextContent().getBytes());
 			}
 			table.put(p);
+			// TODO REMOVEME
+			if (index > 2 * insertedLineMax)
+				break;
 		}
 
 		table.close();
@@ -322,7 +351,7 @@ public class HBaseClient {
 			final InputStreamReader ipsr = new InputStreamReader(ips);
 			final BufferedReader br = new BufferedReader(ipsr);
 			String ligne;
-			while ((ligne = br.readLine()) != null) {
+			for (int index = 0; (ligne = br.readLine()) != null; index++) {
 				final Gson gson = new Gson();
 				final JsonObject jsonObject = gson.fromJson(ligne, JsonObject.class);
 
@@ -353,10 +382,13 @@ public class HBaseClient {
 							(jobject.get("brand").getAsString()).getBytes());
 				}
 				table.put(p);
+				// TODO REMOVEME
+				if (index > insertedLineMax)
+					break;
 			}
 			br.close();
 		} catch (final Exception e) {
-			System.out.println(e.toString());
+			print(e.toString());
 		}
 		table.close();
 	}
@@ -379,12 +411,15 @@ public class HBaseClient {
 
 		try (BufferedReader br = new BufferedReader(new FileReader(filepath))) {
 			String line = "";
-			while ((line = br.readLine()) != null) {
+			for (int index = 0; (line = br.readLine()) != null; index++) {
 				final String[] data = line.split(separator);
-				final Put p = new Put(data[0].getBytes());
-				for (byte j = 1; j < headers.length; j++)
+				final Put p = new Put(Integer.toString(index).getBytes());
+				for (byte j = 0; j < headers.length; j++)
 					p.addColumn(headers[j].getBytes(), headers[j].getBytes(), data[j].getBytes());
 				table.put(p);
+				// TODO REMOVEME
+				if (index > insertedLineMax)
+					break;
 			}
 		} catch (final IOException e) {
 			e.printStackTrace();
@@ -422,141 +457,213 @@ public class HBaseClient {
 						p.addColumn(headers[j].getBytes(), headers[j].getBytes(), data[j].getBytes());
 					table.put(p);
 				}
+				// TODO REMOVEME
+				if (index > insertedLineMax)
+					break;
 			}
 		} catch (final IOException e) {
 			e.printStackTrace();
 		}
 		table.close();
 	}
-	public final void query7(){
+
+	public final void query8() throws IOException {
+		printSeparator("QUERY 8");
+
+		final String vendor = "UK_Gear";
+		final int annee = 2023;
+
+		// On récupère les produits d'une marque
+		Table table = conn.getTable(TableName.valueOf("BrandByProduct"));
+		Scan scan = new Scan();
+		scan.setFilter(new SingleColumnValueFilter("brand".getBytes(), "brand".getBytes(), CompareOp.EQUAL,
+				new BinaryComparator(vendor.getBytes())));
+		ResultScanner rScanner = table.getScanner(scan);
+		List<byte[]> ids = new LinkedList<byte[]>();
+		for (final Result res : rScanner) {
+			byte[] productId = res.getValue("asin".getBytes(), "asin".getBytes());
+			ids.add(productId);
+			print("Row :", Bytes.toString(res.getRow()), "asin :", Bytes.toString(productId), "brand :",
+					Bytes.toString(res.getValue("brand".getBytes(), "brand".getBytes())));
+		}
+
+		// On récupère les commandes passés avec les produits de la marque sur une année
+		// donnée
+		table = conn.getTable(TableName.valueOf("Order"));
+		scan = new Scan();
+		List<Filter> fl = new LinkedList<Filter>();
+		fl.add(new SingleColumnValueFilter("OrderDate".getBytes(), "OrderDate".getBytes(), CompareOp.EQUAL,
+				new SubstringComparator(Integer.toString(annee))));
+		List<byte[]> idVendu = new LinkedList<byte[]>();
+		for (final byte[] id : ids)
+			fl.add(new SingleColumnValueFilter("Orderline".getBytes(), id, CompareOp.EQUAL,
+					new BinaryComparator(vendor.getBytes())));
+
+		scan.setFilter(new FilterList(FilterList.Operator.MUST_PASS_ONE, fl));
+		rScanner = table.getScanner(scan);
+
+		// Calcule du total des ventes d'une année donnée
+		Double total_vente = 0.0;
+		for (final Result res : rScanner) {
+			idVendu.add(res.getRow());
+			total_vente += Double.parseDouble(Bytes.toString(res.getValue("Orderline".getBytes(), "price".getBytes())));
+		}
+
+		print("La marque", vendor, "a un montant de vente de ", df.format(total_vente), "euros en ", annee);
+
+		// On récupère les feedback sur les produits achetés à une année donnée
+		table = conn.getTable(TableName.valueOf("Feedback"));
+		scan = new Scan();
+		fl = new LinkedList<Filter>();
+		for (final byte[] id : idVendu)
+			fl.add(new SingleColumnValueFilter("asin".getBytes(), id, CompareOp.EQUAL,
+					new BinaryComparator(vendor.getBytes())));
+
+		scan.setFilter(new FilterList(FilterList.Operator.MUST_PASS_ONE, fl));
+		Map<String, List<Integer>> productByNote = new HashMap<String, List<Integer>>();
+		rScanner = table.getScanner(scan);
+		for (final Result res : rScanner) {
+			final String productId = Bytes.toString(res.getValue("asin".getBytes(), "asin".getBytes()));
+			final int note = Integer.parseInt(
+					Bytes.toString(res.getValue("feedback".getBytes(), "feedback".getBytes())).substring(1, 2));
+			if (!productByNote.containsKey(productId))
+				productByNote.put(productId, new LinkedList<Integer>());
+			productByNote.get(productId).add(note);
+		}
+
+		// Calcul des moyennes des notes par produit
+		for (final String key : productByNote.keySet()) {
+			final List<Integer> lp = productByNote.get(key);
+			final int moy = lp.stream().reduce(0, Integer::sum);
+			print("Le produit", key, "a en moyenne", df.format((double) moy / (double) lp.size()), "/5");
+		}
+	}
+
+	public final void query7() throws IOException {
 		printSeparator("QUERY 7");
 		Table table = null;
 		ResultScanner rScanner = null;
-		try {
-			// Pour les produits d'un vendeur donné (UK_Gear inutile dans l'exemple)
+		// Pour les produits d'un vendeur donné (UK_Gear inutile dans l'exemple)
 
-			// Invoice personId > Order personId  > Customer personId > feedback personId = feedback asin > product asin = product brand > vendor vendor
-			TableName tableName = TableName.valueOf("Vendor");
-			printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
-			table = conn.getTable(tableName);
+		// Invoice personId > Order personId > Customer personId > feedback personId =
+		// feedback asin > product asin = product brand > vendor vendor
+		TableName tableName = TableName.valueOf("Vendor");
+		printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
+		table = conn.getTable(tableName);
 
-			Scan scan = new Scan();
-			RowFilter filter = new RowFilter(CompareOp.EQUAL, new BinaryComparator(Bytes.toBytes("UK_Gear")));
+		Scan scan = new Scan();
 
-			scan.setFilter(filter);
-			rScanner = table.getScanner(scan);
-			for (Result res : rScanner) {
-				print("res");
-				byte[] val = res.getValue(Bytes.toBytes("vendor"), Bytes.toBytes("vendor"));
-				System.out.println("Row-value vendor: " + Bytes.toString(val));
-				System.out.println(res);
-			}
-			// ---------------------------------------------------------------------------------------------------------------------
-			// On récupère le nom du vendeur , mtn on cherche cette marque dans brand de la table product
-			tableName = TableName.valueOf("Product");
-			printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
-			table = conn.getTable(tableName);
-			
-			Scan scanProduct = new Scan();
-			// Ici c'est normalement la marque
-			RowFilter filterProduct = new RowFilter(CompareOp.EQUAL, new BinaryComparator(Bytes.toBytes("B005FUKW6M")));
-
-			scanProduct.setFilter(filterProduct);
-			// Submit a scan request.
-			rScanner = table.getScanner(scanProduct);
-			String asinProduct ="";
-			for (Result res : rScanner) {
-				print("res");
-				byte[] val = res.getValue(Bytes.toBytes("asin"), Bytes.toBytes("asin"));
-				System.out.println("Row-value  asin product : " + Bytes.toString(val));
-				System.out.println(res);
-				asinProduct = Bytes.toString(val);
-			}
-			asinProduct = "B005FUKW6M"; // car je ne recupère pas encore le asin car je n'ai pas la marque
-			// ---------------------------------------------------------------------------------------------------------------------
-			// On récupère le asin du produit , mtn on cherche le feedback qui contient ce asin afin d'obtenir les personId
-			tableName = TableName.valueOf("Feedback");
-			printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
-			table = conn.getTable(tableName);
-			
-			Scan scanFeedbackPersonId = new Scan();
-			RowFilter filterFeedbackPersonId = new RowFilter(CompareOp.EQUAL, new BinaryComparator(Bytes.toBytes(asinProduct)));
-
-			scanFeedbackPersonId.setFilter(filterFeedbackPersonId);
-
-			rScanner = table.getScanner(scanFeedbackPersonId);
-			String personId = "";
-			for (Result res : rScanner) {
-				print("res");
-				byte[] val = res.getValue(Bytes.toBytes("PersonId"), Bytes.toBytes("PersonId"));
-				System.out.println("Row-value person id feedback : " + Bytes.toString(val));
-				System.out.println(res);
-				personId =  Bytes.toString(val);
-			}
-			// ---------------------------------------------------------------------------------------------------------------------
-			// On a le personId pour récupèrer la date dans la table invoice ( il faudrait aussi recuperer le price en fonction du asin afin d'avoir un orderDate lié a un prix afin de calculer si il y a eu une baisse)
-			tableName = TableName.valueOf("Invoice");
-			printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
-			table = conn.getTable(tableName);
-			
-			Scan scanInvoice = new Scan();
-			RowFilter filterInvoice = new RowFilter(CompareOp.EQUAL, new BinaryComparator(Bytes.toBytes(personId)));
-
-			scanInvoice.setFilter(filterInvoice);
-
-			rScanner = table.getScanner(scanInvoice);
-			for (Result res : rScanner) {
-				print("res");
-				byte[] val = res.getValue(Bytes.toBytes("OrderDate"), Bytes.toBytes("OrderDate"));
-				System.out.println("Row-value invoice orderdate : " + Bytes.toString(val));
-				System.out.println(res);
-			}
-			// ---------------------------------------------------------------------------------------------------------------------
-			// analyse des avis sur ces articles pour voir s'il y a des sentiments négatifs en fonction du asin
-			tableName = TableName.valueOf("Feedback");
-			printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
-			table = conn.getTable(tableName);
-			
-			Scan scanFeedbackAsin = new Scan();
-			RowFilter filterFeedbackAsin = new RowFilter(CompareOp.EQUAL, new BinaryComparator(Bytes.toBytes("B005FUKW6M")));
-
-			scanFeedbackAsin.setFilter(filterFeedbackAsin);
-			rScanner = table.getScanner(scanFeedbackAsin);
-			for (Result res : rScanner) {
-
-				byte[] PersonId = res.getValue(Bytes.toBytes("PersonId"), Bytes.toBytes("PersonId"));
-				System.out.println("Row-value person id feedback: " + Bytes.toString(PersonId) + "\n");				
-				System.out.println(res);
-			}
-			// ---------------------------------------------------------------------------------------------------------------------
-			printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
-			Scan scanFeedback = new Scan();
-			RowFilter filterFeedback = new RowFilter(CompareOp.EQUAL, new BinaryComparator(Bytes.toBytes("B00005OU5T")));
-
-			scanInvoice.setFilter(filterFeedback);
-			rScanner = table.getScanner(scanFeedback);
-			int compteurNoteNegatif = 0;
-			int i =0;
-			for (Result res : rScanner) {
-				print("res");
-				byte[] feedback = res.getValue(Bytes.toBytes("feedback"), Bytes.toBytes("feedback"));
-				System.out.println("Row-value feedback notes : " + Bytes.toString(feedback) + "\n");				
-				String note = Bytes.toString(feedback).substring(1,2);
-				print(" Note feedback : "+ note + "\n");
-				i++;
-				if(  Integer.parseInt(note) < 3){
-					compteurNoteNegatif++;
-				}
-				System.out.println(res);
-			}
-			print("Nombre d'avis negatif : " + compteurNoteNegatif + " ce qui donne un poucentage de " + (i/compteurNoteNegatif) + " % d'avis negatif");
-			// jpp il est 3h40 les données des tables sont claqués, je vais dormir
-
-			table.close();
-		} catch (IOException  e) {
-			print("Single column value filter failed " ,e);
+		scan.setFilter(new RowFilter(CompareOp.EQUAL, new BinaryComparator("UK_Gear".getBytes())));
+		rScanner = table.getScanner(scan);
+		for (final Result res : rScanner) {
+			print("Row :", Bytes.toString(res.getRow())); // nom du vendeur / pk
+			print("Industry :", Bytes.toString(res.getValue("Industry".getBytes(), "Industry".getBytes())));
+			print("Country :", Bytes.toString(res.getValue("Country".getBytes(), "Country".getBytes())));
 		}
+		// ---------------------------------------------------------------------------------------------------------------------
+
+		// BrandByProduct
+		tableName = TableName.valueOf("BrandByProduct");
+		printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
+		table = conn.getTable(tableName);
+
+		final List<String> asinDeBrand = new LinkedList<String>();
+
+		scan = new Scan();
+		scan.setFilter(new SingleColumnValueFilter("brand".getBytes(), "brand".getBytes(), CompareOp.EQUAL,
+				new BinaryComparator("UK_Gear".getBytes())));
+		rScanner = table.getScanner(scan);
+		for (final Result res : rScanner) {
+			print("brand :", Bytes.toString(res.getValue("brand".getBytes(), "brand".getBytes())));
+			print("asin :", Bytes.toString(res.getValue("asin".getBytes(), "asin".getBytes())));
+			final String asin = Bytes.toString(res.getValue("brand".getBytes(), "brand".getBytes()));
+			asinDeBrand.add(asin);
+		}
+
+		// ---------------------------------------------------------------------------------------------------------------------
+		// On récupère le asin du produit , mtn on cherche le feedback qui contient ce
+		// asin afin d'obtenir les personId
+		tableName = TableName.valueOf("Feedback");
+		printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
+		table = conn.getTable(tableName);
+
+		final Scan scanFeedbackPersonId = new Scan();
+		final RowFilter filterFeedbackPersonId = new RowFilter(CompareOp.EQUAL,
+				new BinaryComparator(Bytes.toBytes(asinDeBrand.get(0))));
+
+		scanFeedbackPersonId.setFilter(filterFeedbackPersonId);
+
+		rScanner = table.getScanner(scanFeedbackPersonId);
+		String personId = "";
+		for (final Result res : rScanner) {
+			personId = Bytes.toString(res.getValue("PersonId".getBytes(), "PersonId".getBytes()));
+			print("Row-value person id feedback : ", personId);
+		}
+		// ---------------------------------------------------------------------------------------------------------------------
+		// On a le personId pour récupèrer la date dans la table invoice ( il faudrait
+		// aussi recuperer le price en fonction du asin afin d'avoir un orderDate lié a
+		// un prix afin de calculer si il y a eu une baisse)
+		tableName = TableName.valueOf("Invoice");
+		printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
+		table = conn.getTable(tableName);
+
+		final Scan scanInvoice = new Scan();
+		final SingleColumnValueFilter filterInvoice = new SingleColumnValueFilter("PersonId".getBytes(),
+				"PersonId".getBytes(), CompareOp.EQUAL, new BinaryComparator(personId.getBytes()));
+
+		scanInvoice.setFilter(filterInvoice);
+
+		rScanner = table.getScanner(scanInvoice);
+		for (final Result res : rScanner) {
+			final String orderDate = Bytes.toString(res.getValue("OrderDate".getBytes(), "OrderDate".getBytes()));
+			print("Row-value invoice orderdate : ", orderDate);
+		}
+		// ---------------------------------------------------------------------------------------------------------------------
+		// analyse des avis sur ces articles pour voir s'il y a des sentiments négatifs
+		// en fonction du asin
+		tableName = TableName.valueOf("Feedback");
+		printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
+		table = conn.getTable(tableName);
+
+		final Scan scanFeedbackAsin = new Scan();
+		final RowFilter filterFeedbackAsin = new RowFilter(CompareOp.EQUAL,
+				new BinaryComparator("B005FUKW6M".getBytes()));
+
+		scanFeedbackAsin.setFilter(filterFeedbackAsin);
+		rScanner = table.getScanner(scanFeedbackAsin);
+		for (final Result res : rScanner) {
+			final byte[] PersonId = res.getValue("PersonId".getBytes(), "PersonId".getBytes());
+			print("Row-value person id feedback: " + Bytes.toString(PersonId) + "\n");
+			print(res);
+		}
+		// ---------------------------------------------------------------------------------------------------------------------
+		printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
+		final Scan scanFeedback = new Scan();
+		final RowFilter filterFeedback = new RowFilter(CompareOp.EQUAL, new BinaryComparator("B00005OU5T".getBytes()));
+
+		scanInvoice.setFilter(filterFeedback);
+		rScanner = table.getScanner(scanFeedback);
+		int compteurNoteNegatif = 0;
+		int i = 0;
+		for (final Result res : rScanner) {
+			print("res");
+			final byte[] feedback = res.getValue("feedback".getBytes(), "feedback".getBytes());
+			print("Row-value feedback notes : " + Bytes.toString(feedback) + "\n");
+			final String note = Bytes.toString(feedback).substring(1, 2);
+			print(" Note feedback : " + note + "\n");
+			i++;
+			if (Integer.parseInt(note) < 3) {
+				compteurNoteNegatif++;
+			}
+			print(res);
+		}
+		print("Nombre d'avis negatif :", compteurNoteNegatif, "ce qui donne un poucentage de",
+				(i / compteurNoteNegatif), "% d'avis negatif");
+		// jpp il est 3h40 les données des tables sont claqués, je vais dormir
+
+		table.close();
 	}
+
 	public static final void printSeparator(final String... s) {
 		final List<String> list = new LinkedList<String>(Arrays.asList(s));
 		list.add(0, "\n----------------");
