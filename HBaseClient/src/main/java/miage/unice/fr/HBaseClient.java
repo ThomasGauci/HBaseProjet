@@ -41,10 +41,9 @@ import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.client.TableDescriptor;
 import org.apache.hadoop.hbase.filter.BinaryComparator;
+import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.filter.FilterList;
-import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
-import org.apache.hadoop.hbase.filter.RowFilter;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.filter.SubstringComparator;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -99,7 +98,8 @@ public class HBaseClient {
 
 		// hbc.insertDatasets();
 
-		hbc.query8();
+		hbc.query7();
+		hbc.query8("UK_Gear", 2023);
 
 		printSeparator("Exiting");
 	}
@@ -467,11 +467,8 @@ public class HBaseClient {
 		table.close();
 	}
 
-	public final void query8() throws IOException {
+	public final void query8(final String vendor, final int annee) throws IOException {
 		printSeparator("QUERY 8");
-
-		final String vendor = "UK_Gear";
-		final int annee = 2023;
 
 		// On récupère les produits d'une marque
 		Table table = conn.getTable(TableName.valueOf("BrandByProduct"));
@@ -483,12 +480,11 @@ public class HBaseClient {
 		for (final Result res : rScanner) {
 			byte[] productId = res.getValue("asin".getBytes(), "asin".getBytes());
 			ids.add(productId);
-			print("Row :", Bytes.toString(res.getRow()), "asin :", Bytes.toString(productId), "brand :",
-					Bytes.toString(res.getValue("brand".getBytes(), "brand".getBytes())));
 		}
 
 		// On récupère les commandes passés avec les produits de la marque sur une année
 		// donnée
+		table.close();
 		table = conn.getTable(TableName.valueOf("Order"));
 		scan = new Scan();
 		List<Filter> fl = new LinkedList<Filter>();
@@ -512,6 +508,7 @@ public class HBaseClient {
 		print("La marque", vendor, "a un montant de vente de ", df.format(total_vente), "euros en ", annee);
 
 		// On récupère les feedback sur les produits achetés à une année donnée
+		table.close();
 		table = conn.getTable(TableName.valueOf("Feedback"));
 		scan = new Scan();
 		fl = new LinkedList<Filter>();
@@ -537,131 +534,69 @@ public class HBaseClient {
 			final int moy = lp.stream().reduce(0, Integer::sum);
 			print("Le produit", key, "a en moyenne", df.format((double) moy / (double) lp.size()), "/5");
 		}
+		table.close();
 	}
 
 	public final void query7() throws IOException {
 		printSeparator("QUERY 7");
-		Table table = null;
-		ResultScanner rScanner = null;
-		// Pour les produits d'un vendeur donné (UK_Gear inutile dans l'exemple)
 
-		// Invoice personId > Order personId > Customer personId > feedback personId =
-		// feedback asin > product asin = product brand > vendor vendor
-		TableName tableName = TableName.valueOf("Vendor");
-		printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
-		table = conn.getTable(tableName);
-
+		Table table = conn.getTable(TableName.valueOf("Vendor"));
 		Scan scan = new Scan();
-
-		scan.setFilter(new RowFilter(CompareOp.EQUAL, new BinaryComparator("UK_Gear".getBytes())));
-		rScanner = table.getScanner(scan);
-		for (final Result res : rScanner) {
-			print("Row :", Bytes.toString(res.getRow())); // nom du vendeur / pk
-			print("Industry :", Bytes.toString(res.getValue("Industry".getBytes(), "Industry".getBytes())));
-			print("Country :", Bytes.toString(res.getValue("Country".getBytes(), "Country".getBytes())));
-		}
-		// ---------------------------------------------------------------------------------------------------------------------
-
-		// BrandByProduct
-		tableName = TableName.valueOf("BrandByProduct");
-		printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
-		table = conn.getTable(tableName);
-
-		final List<String> asinDeBrand = new LinkedList<String>();
-
-		scan = new Scan();
-		scan.setFilter(new SingleColumnValueFilter("brand".getBytes(), "brand".getBytes(), CompareOp.EQUAL,
-				new BinaryComparator("UK_Gear".getBytes())));
-		rScanner = table.getScanner(scan);
-		for (final Result res : rScanner) {
-			print("brand :", Bytes.toString(res.getValue("brand".getBytes(), "brand".getBytes())));
-			print("asin :", Bytes.toString(res.getValue("asin".getBytes(), "asin".getBytes())));
-			final String asin = Bytes.toString(res.getValue("brand".getBytes(), "brand".getBytes()));
-			asinDeBrand.add(asin);
-		}
-
-		// ---------------------------------------------------------------------------------------------------------------------
-		// On récupère le asin du produit , mtn on cherche le feedback qui contient ce
-		// asin afin d'obtenir les personId
-		tableName = TableName.valueOf("Feedback");
-		printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
-		table = conn.getTable(tableName);
-
-		final Scan scanFeedbackPersonId = new Scan();
-		final RowFilter filterFeedbackPersonId = new RowFilter(CompareOp.EQUAL,
-				new BinaryComparator(Bytes.toBytes(asinDeBrand.get(0))));
-
-		scanFeedbackPersonId.setFilter(filterFeedbackPersonId);
-
-		rScanner = table.getScanner(scanFeedbackPersonId);
-		String personId = "";
-		for (final Result res : rScanner) {
-			personId = Bytes.toString(res.getValue("PersonId".getBytes(), "PersonId".getBytes()));
-			print("Row-value person id feedback : ", personId);
-		}
-		// ---------------------------------------------------------------------------------------------------------------------
-		// On a le personId pour récupèrer la date dans la table invoice ( il faudrait
-		// aussi recuperer le price en fonction du asin afin d'avoir un orderDate lié a
-		// un prix afin de calculer si il y a eu une baisse)
-		tableName = TableName.valueOf("Invoice");
-		printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
-		table = conn.getTable(tableName);
-
-		final Scan scanInvoice = new Scan();
-		final SingleColumnValueFilter filterInvoice = new SingleColumnValueFilter("PersonId".getBytes(),
-				"PersonId".getBytes(), CompareOp.EQUAL, new BinaryComparator(personId.getBytes()));
-
-		scanInvoice.setFilter(filterInvoice);
-
-		rScanner = table.getScanner(scanInvoice);
-		for (final Result res : rScanner) {
-			final String orderDate = Bytes.toString(res.getValue("OrderDate".getBytes(), "OrderDate".getBytes()));
-			print("Row-value invoice orderdate : ", orderDate);
-		}
-		// ---------------------------------------------------------------------------------------------------------------------
-		// analyse des avis sur ces articles pour voir s'il y a des sentiments négatifs
-		// en fonction du asin
-		tableName = TableName.valueOf("Feedback");
-		printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
-		table = conn.getTable(tableName);
-
-		final Scan scanFeedbackAsin = new Scan();
-		final RowFilter filterFeedbackAsin = new RowFilter(CompareOp.EQUAL,
-				new BinaryComparator("B005FUKW6M".getBytes()));
-
-		scanFeedbackAsin.setFilter(filterFeedbackAsin);
-		rScanner = table.getScanner(scanFeedbackAsin);
-		for (final Result res : rScanner) {
-			final byte[] PersonId = res.getValue("PersonId".getBytes(), "PersonId".getBytes());
-			print("Row-value person id feedback: " + Bytes.toString(PersonId) + "\n");
-			print(res);
-		}
-		// ---------------------------------------------------------------------------------------------------------------------
-		printSeparator("La table : " + tableName + " " + admin.tableExists(tableName));
-		final Scan scanFeedback = new Scan();
-		final RowFilter filterFeedback = new RowFilter(CompareOp.EQUAL, new BinaryComparator("B00005OU5T".getBytes()));
-
-		scanInvoice.setFilter(filterFeedback);
-		rScanner = table.getScanner(scanFeedback);
-		int compteurNoteNegatif = 0;
-		int i = 0;
-		for (final Result res : rScanner) {
-			print("res");
-			final byte[] feedback = res.getValue("feedback".getBytes(), "feedback".getBytes());
-			print("Row-value feedback notes : " + Bytes.toString(feedback) + "\n");
-			final String note = Bytes.toString(feedback).substring(1, 2);
-			print(" Note feedback : " + note + "\n");
-			i++;
-			if (Integer.parseInt(note) < 3) {
-				compteurNoteNegatif++;
-			}
-			print(res);
-		}
-		print("Nombre d'avis negatif :", compteurNoteNegatif, "ce qui donne un poucentage de",
-				(i / compteurNoteNegatif), "% d'avis negatif");
-		// jpp il est 3h40 les données des tables sont claqués, je vais dormir
-
+		ResultScanner rScanner = table.getScanner(scan);
+		List<oTuple<String, Double>> vendors = new LinkedList<oTuple<String, Double>>();
+		for (final Result res : rScanner)
+			vendors.add(new oTuple<String, Double>(Bytes.toString(res.getRow()), Double.MAX_VALUE));
 		table.close();
+
+		for (final oTuple<String, Double> ot : vendors) {
+			final String vendor = ot.a;
+			final String[] annees = new String[] { "2018", "2019", "2020", "2021", "2022", "2023", "2024" };
+
+			for (final String annee : annees) {
+				// On récupère les produits d'une marque
+				table = conn.getTable(TableName.valueOf("BrandByProduct"));
+				scan = new Scan();
+				scan.setFilter(new SingleColumnValueFilter("brand".getBytes(), "brand".getBytes(), CompareOp.EQUAL,
+						new BinaryComparator(vendor.getBytes())));
+				rScanner = table.getScanner(scan);
+				List<byte[]> ids = new LinkedList<byte[]>();
+				for (final Result res : rScanner) {
+					byte[] productId = res.getValue("asin".getBytes(), "asin".getBytes());
+					ids.add(productId);
+				}
+
+				// On récupère les commandes passés avec les produits de la marque sur une année
+				// donnée
+				table.close();
+				table = conn.getTable(TableName.valueOf("Order"));
+				scan = new Scan();
+				List<Filter> fl = new LinkedList<Filter>();
+				fl.add(new SingleColumnValueFilter("OrderDate".getBytes(), "OrderDate".getBytes(), CompareOp.EQUAL,
+						new SubstringComparator(annee)));
+				List<byte[]> idVendu = new LinkedList<byte[]>();
+				for (final byte[] id : ids)
+					fl.add(new SingleColumnValueFilter("Orderline".getBytes(), id, CompareOp.EQUAL,
+							new BinaryComparator(vendor.getBytes())));
+
+				scan.setFilter(new FilterList(FilterList.Operator.MUST_PASS_ONE, fl));
+				rScanner = table.getScanner(scan);
+
+				// Calcule du total des ventes d'une année donnée
+				Double total_vente = 0.0;
+				for (final Result res : rScanner) {
+					idVendu.add(res.getRow());
+					total_vente += Double
+							.parseDouble(Bytes.toString(res.getValue("Orderline".getBytes(), "price".getBytes())));
+				}
+
+				if (ot.b - total_vente < 0)
+					print("La marque", vendor, "a moins vendu que le trimestre précédent", df.format(ot.b), "pour",
+							df.format(total_vente), "euros en ", annee);
+
+				ot.b = total_vente;
+				table.close();
+			}
+		}
 	}
 
 	public static final void printSeparator(final String... s) {
